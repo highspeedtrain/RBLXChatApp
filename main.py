@@ -136,6 +136,7 @@ def getJobId():
     userName = UserInfoData["name"]
 
     requests.post(messageFunctionURL, json={"job_id": jobId, "username": "System", "message": f"{userName} has joined"})
+    newMessage("[Server]: Connected to WS")
     newMessage("[Server]: Welcome to RBLXChat! Please keep things respectful.")
     newMessage("[Server]: Harrassment, homophobia, racism etc is not allowed.")
     isAttached = True
