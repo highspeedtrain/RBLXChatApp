@@ -1,5 +1,5 @@
 import tkinter as ui
-from tkinter import messagebox
+from tkinter import messagebox, font
 from typing import Optional
 import sys
 import platform
@@ -23,13 +23,33 @@ root: Optional[ui.Tk] = None
 messageCanvas: Optional[ui.Canvas] = None
 messageContainer: Optional[ui.Frame] = None
 isAttached = False
+isDarkMode = False
 transport = WebsocketsTransport(url="wss://fxdbjbvpegpmnrlqmvwc.hasura.eu-west-2.nhost.run/v1/graphql")
+attachButton : Optional[ui.Button] = None
+unattachButton : Optional[ui.Button] = None
+darkModeButton : Optional[ui.Button] = None
+playingGameLabel : Optional[ui.Label] = None
+messageScrollContainer : Optional[ui.Frame] = None
+mainContainer : Optional[ui.Frame] = None
+scrollbar : Optional[ui.Scrollbar] = None
+needsToLogin = True
+sessionKey : Optional[str] = None
+usernameInput : Optional[ui.Entry] = None
+passwordInput : Optional[ui.Entry] = None
+
+NAME_COLOURS = [
+"#FD2943",
+"#01A2FF",
+"#02B857",
+"#6B0A7C",
+"#DA8541",
+"#F5D030",
+"#E8BAC8",
+"#D7C59A"
+]
 
 messageFunctionURL = "https://fxdbjbvpegpmnrlqmvwc.functions.eu-west-2.nhost.run/v1/message"
 
-def onMessage():
-    global jobId
-    
 async def initRealtime():
     subscriptionQuery = gql("""
     subscription {
@@ -46,7 +66,7 @@ async def initRealtime():
         async for result in session.subscribe(subscriptionQuery):
             if isAttached == False or result["messages"][-1]["job_id"] != jobId:
                 continue
-            newMessage(f"[{result["messages"][-1]["username"]}]: {result["messages"][-1]["message"]}")
+            newMessage(f"[{result["messages"][-1]["username"]}]: {result["messages"][-1]["message"]}", True)
     
 def getJobId():
     global placeId
@@ -106,9 +126,9 @@ def getJobId():
     for AUserId in userIdMathces:
         userId = AUserId
 
-    newMessage(f"logfile read success")
-    newMessage(f"jobid: {jobId}")
-    newMessage(f"placeid: {placeId}")
+    newMessage(f"logfile read success", False)
+    newMessage(f"jobid: {jobId}", False)
+    newMessage(f"placeid: {placeId}", False)
     Response = requests.post(f"https://highspeedtrain.net/api/rblx/GetGameInfo", json={"placeIds": [placeId]}, headers=({"Accept": "application/json"}))
     if Response.status_code != 200:
         messagebox.showinfo("Failed to Attach", f"Cant get info on game u prlaying: stat code {Response.status_code}")
@@ -117,7 +137,7 @@ def getJobId():
         universeId = None
         return
     
-    newMessage("loaded game info")
+    newMessage("loaded game info", False)
     
     UserInfo = requests.get(f"https://users.roblox.com/v1/users/{userId}")
     if UserInfo.status_code != 200:
@@ -126,7 +146,7 @@ def getJobId():
         placeId = None
         universeId = None
         return
-    newMessage("loaded user info")
+    newMessage("loaded user info", False)
     
     ResponseData = Response.json()
     UserInfoData = UserInfo.json()
@@ -136,9 +156,8 @@ def getJobId():
     userName = UserInfoData["name"]
 
     requests.post(messageFunctionURL, json={"job_id": jobId, "username": "System", "message": f"{userName} has joined"})
-    newMessage("[Server]: Connected to WS")
-    newMessage("[Server]: Welcome to RBLXChat! Please keep things respectful.")
-    newMessage("[Server]: Harrassment, homophobia, racism etc is not allowed.")
+    newMessage("[Server]: Welcome to RBLXChat! Please keep things respectful.", False)
+    newMessage("[Server]: Harrassment, homophobia, racism etc is not allowed.", False)
     isAttached = True
     
 def onUnattachClicked():
@@ -152,7 +171,7 @@ def onUnattachClicked():
         messagebox.showinfo("Failed to Unattach", "Not attached")
         return
     
-    newMessage("unattaching")
+    newMessage("unattaching", False)
     
     if playingGame is None:
         return
@@ -204,33 +223,131 @@ def onReturn(*args):
         messagebox.showinfo("Failed to Send Message", f"You are not playing anything")
         return
     
-    Result = requests.post(messageFunctionURL, json={"job_id": jobId, "username": userName, "message": chatInput.get()})
-    if Result == 200:
+    Result = requests.post(messageFunctionURL, json={"job_id": jobId, "sessionKey": sessionKey, "message": chatInput.get()})
+    if Result.status_code == 200:
         return
     
-    if Result == 429:
+    if Result.status_code == 429:
         messagebox.showinfo("Failed to Send Message", f"why are you sending so many messages")
         return
-    elif Result == 500:
-        messagebox.showinfo("Failed to Send Message", f"internal server error, please dm highzpeedtrain with info")
+    elif Result.status_code == 500:
+        messagebox.showinfo("Failed to Send Message", f"internal server error, please dm highspeedtrain with info")
         return
-    elif Result == 400:
-        messagebox.showinfo("Failed to Send Message", f"server declined request cause of missing fields, please retry.")
+    elif Result.status_code == 400:
+        messagebox.showinfo("Failed to Send Message", f"message was more than 300 characters, please split up message")
         return
+    elif Result.status_code == 401:
+        messagebox.showinfo("Failed to Send Message", f"authentication failed, please restart the client")
+    else:
+        messagebox.showinfo("wtf", f"unknown error {Result.status_code}")
+        
+def getNameColour(name):
+    value = 0
+    for index in range(len(name)):
+        cValue = ord(name[index])
+        reverseIndex = len(name) - index
+        
+        if len(name) % 2 == 1:
+            reverseIndex -= 1
+
+        if reverseIndex % 4 >= 2:
+            cValue = -cValue
+            
+        value += cValue
     
-def newMessage(message):
+    return value
+
+def computeNameColour(name):
+    return NAME_COLOURS[(getNameColour(name) + 0) % len(NAME_COLOURS)]
+    
+def newMessage(message, wasChat):
+    global isDarkMode
+    
     if messageCanvas is None or root is None:
         return
     
-    ui.Label(messageContainer, text=message, anchor="w", justify="left").pack(pady=2, padx=2, fill="x")
+    text = ui.Text(messageContainer, height=1, wrap="word", bg="#f0f0f0", borderwidth=0, font=font.nametofont("TkDefaultFont"))
+    if isDarkMode:
+        text.config(bg="#323232", fg="white")
+    text.pack(pady=2, padx=2, fill="x")
+    text.insert("end", message)
+    text.configure(state="disabled")
+    
+    if wasChat:
+        text.tag_add("highlight", f"1.{0}", f"1.{len(message[1:message.index(":")])+1}")
+        text.tag_config("highlight", foreground=computeNameColour(re.search(r"\[(.*?)\]:", message).group(1))) # type: ignore
+    
     messageCanvas.update_idletasks()
+    
+def toggleUiMode():
+    if mainContainer is None or messageContainer is None or attachButton is None or unattachButton is None or darkModeButton is None or playingGameLabel is None or chatInput is None or messageCanvas is None or messageScrollContainer is None or scrollbar is None:
+        return
+    
+    global isDarkMode
+    
+    isDarkMode = not isDarkMode
+    if isDarkMode:
+        mainContainer.config(bg="#323232")
+        messageContainer.config(bg="#323232")
+        attachButton.config(bg="#111111", fg="white")
+        unattachButton.config(bg="#111111", fg="white")
+        darkModeButton.config(bg="#111111", fg="white", text="Light")
+        playingGameLabel.config(bg="#323232", fg="white")
+        chatInput.config(bg="#111111", fg="white")
+        messageCanvas.config(bg="#323232")
+        messageScrollContainer.config(bg="#323232")
+        scrollbar.config(bg="#323232")
+        
+        for child in messageContainer.winfo_children():
+            child.configure(bg="#323232", fg="white") # type: ignore
+    else:
+        mainContainer.config(bg="#f0f0f0")
+        messageContainer.config(bg="white")
+        attachButton.config(bg="white", fg="black")
+        unattachButton.config(bg="white", fg="black")
+        darkModeButton.config(bg="white", fg="black", text="Dark")
+        playingGameLabel.config(bg="#f0f0f0", fg="black")
+        chatInput.config(bg="white", fg="black")
+        messageCanvas.config(bg="#f0f0f0")
+        messageScrollContainer.config(bg="#f0f0f0")
+        scrollbar.config(bg="#f0f0f0")
+        for child in messageContainer.winfo_children():
+            child.configure(bg="#f0f0f0", fg="black", height=1, borderwidth=0) # type: ignore
 
+def onSignInClicked():
+    global needsToLogin
+    global usernameInput
+    global passwordInput
+    global sessionKey
+    
+    if passwordInput is None or usernameInput is None:
+        return
+    
+    response = requests.post("https://highspeedtrain.net/api/auth/authorise", headers={"Content-Type": "application/json"}, json={"Action": "Login", "Username": usernameInput.get(), "Password": passwordInput.get()})
+
+    if response.status_code == 200:
+        sessionKey = response.json()["data"]["sessionKey"]
+        needsToLogin = False
+        messagebox.showinfo("Signed In", f"Signed in as {response.json()["data"]["username"]}")
+        return
+    
+    needsToLogin = False
+    
 def initUi(loop):
     global playingGame
     global chatInput
     global root
     global messageCanvas
     global messageContainer
+    global attachButton
+    global unattachButton
+    global darkModeButton
+    global playingGameLabel
+    global messageScrollContainer
+    global scrollbar
+    global mainContainer
+    global usernameInput
+    global passwordInput
     
     root = ui.Tk()
     root.title("RBLXChatApp")
@@ -238,25 +355,37 @@ def initUi(loop):
     root.resizable(True, True)
     root.attributes("-topmost", True)
     
+    loginContainer = ui.Frame(root, height=root.winfo_height(), width=root.winfo_width())
+    
+    signInLabel = ui.Label(loginContainer, text="Sign In With Your highspeedtrain.net Account")
+    usernameInput = ui.Entry(loginContainer, bg="white")
+    passwordInput = ui.Entry(loginContainer, bg="white")
+    signInButton = ui.Button(loginContainer, text="Sign In", command=onSignInClicked)
+    
+    mainContainer = ui.Frame(root, height=root.winfo_height(), width=root.winfo_width())
+    
     playingGame = ui.StringVar(value="Not playing anything")
 
-    attachButton = ui.Button(root, text="Attach", command=onAttachClicked)
-    attachButton.place(x=root.winfo_width()-10, y=10, anchor="ne")
+    attachButton = ui.Button(mainContainer, text="Attach", command=onAttachClicked)
+    attachButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne")
     
-    unattachButton = ui.Button(root, text="Unattach", command=onUnattachClicked)
-    unattachButton.place(x=root.winfo_width()-10, y=10, anchor="ne")
+    unattachButton = ui.Button(mainContainer, text="Unattach", command=onUnattachClicked)
+    unattachButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne")
     
-    playingGameLabel = ui.Label(root, textvariable=playingGame)
+    darkModeButton = ui.Button(mainContainer, text="Dark", command=toggleUiMode)
+    darkModeButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne")
+    
+    playingGameLabel = ui.Label(mainContainer, textvariable=playingGame)
     playingGameLabel.place(x=10, y = 10, anchor = "nw")
     
-    chatInput = ui.Entry(root)
-    chatInput.place(relx=0.5, y=root.winfo_height()-10, anchor="s", width=root.winfo_width()-20)
+    chatInput = ui.Entry(mainContainer)
+    chatInput.place(relx=0.5, y=mainContainer.winfo_height()-10, anchor="s", width=root.winfo_width()-20)
     chatInput.bind("<FocusIn>", onMessageClicked)
     chatInput.bind("<FocusOut>", onMessageLeft)
     chatInput.bind("<Return>", onReturn)
     chatInput.insert(0, "Enter message here")
     
-    messageScrollContainer = ui.Frame(root, borderwidth=1, relief="solid", bg="white")
+    messageScrollContainer = ui.Frame(mainContainer, borderwidth=1, relief="solid", bg="white")
     
     messageCanvas = ui.Canvas(messageScrollContainer)
     scrollbar = ui.Scrollbar(messageScrollContainer, orient="vertical", command=messageCanvas.yview)
@@ -268,22 +397,35 @@ def initUi(loop):
     messageContainer = ui.Frame(messageCanvas)
     window = messageCanvas.create_window((0, 0), window=messageContainer, anchor="nw")
     
-    def update_position():
-        if root is None or chatInput is None or messageCanvas is None:
+    def updatePosition():
+        if root is None or usernameInput is None or passwordInput is None or mainContainer is None or chatInput is None or messageCanvas is None or attachButton is None or unattachButton is None or darkModeButton is None or messageScrollContainer is None:
             return
         
-        attachButton.place(x=root.winfo_width()-10, y=10, anchor="ne", width=55)
-        unattachButton.place(x=root.winfo_width()-10, y=40, anchor="ne", width=55)
-        chatInput.place(relx=0.5, y=root.winfo_height()-10, anchor="s", width=root.winfo_width()-20)
-        messageScrollContainer.place(x=10, y=35, width=root.winfo_width()-80, height=root.winfo_height()-70)
+        if needsToLogin:
+            loginContainer.place(height=root.winfo_height(), width=root.winfo_width())
+            signInLabel.place(x=10, y=10)
+            usernameInput.place(x=10, y=40, width=200, height=25)
+            passwordInput.place(x=10, y=75, width=200, height=25)
+            signInButton.place(x=10, y=105)
+            loop.call_soon(loop.stop)
+            loop.run_forever()
+            root.after(100, updatePosition)
+            return
+        
+        mainContainer.place(width=root.winfo_width(), height=root.winfo_height())
+        attachButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne", width=55)
+        unattachButton.place(x=mainContainer.winfo_width()-10, y=40, anchor="ne", width=55)
+        darkModeButton.place(x=mainContainer.winfo_width()-10, y=65, anchor="ne")
+        chatInput.place(relx=0.5, y=mainContainer.winfo_height()-10, anchor="s", width=mainContainer.winfo_width()-20)
+        messageScrollContainer.place(x=10, y=35, width=mainContainer.winfo_width()-80, height=mainContainer.winfo_height()-70)
         messageCanvas.config(scrollregion=messageCanvas.bbox("all"))
         messageCanvas.itemconfig(window, width=messageCanvas.winfo_width())
         messageCanvas.yview_moveto(1)
         loop.call_soon(loop.stop)
         loop.run_forever()
-        root.after(100, update_position)
+        root.after(100, updatePosition)
     
-    root.after(100, update_position)
+    root.after(100, updatePosition)
     root.mainloop()
 
 if __name__ != "__main__":

@@ -5,8 +5,10 @@ use this chat app
 Chat will automatically find the server id, game and account that you're playing and connect you to any other players in the same server.
 
 # How to Use
+You will need a (highspeedtrain.net)[https://highspeedtrain.net/account/create] account to use this.
 Install (see below)
-Open the .exe and join a Roblox game
+Open the .exe and sign in using your highspeedtrain.net account information
+Join a Roblox game
 Click "Attach"
 Wait until the chat says "[Server]: Connected to WS"
 You can then use chat as normal, type in the box, press enter to send message.
