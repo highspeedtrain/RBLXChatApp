@@ -1,4 +1,4 @@
-<img width="564" height="42" alt="image" src="https://github.com/user-attachments/assets/e733beea-f60d-49a9-9004-293f9130583a" /># RBLXChatApp
+RBLXChatApp
 Don't want to give your face to a billion dollar corporation being sued for using your data to train AI?
 use this chat app
 
