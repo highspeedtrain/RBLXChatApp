@@ -36,6 +36,7 @@ needsToLogin = True
 sessionKey : Optional[str] = None
 usernameInput : Optional[ui.Entry] = None
 passwordInput : Optional[ui.Entry] = None
+appdata = os.path.join(os.environ.get("LOCALAPPDATA"), "RBLXChatApp") #type:ignore
 
 NAME_COLOURS = [
 "#FD2943",
@@ -76,6 +77,7 @@ def getJobId():
     global userId
     global isAttached
     global userName
+    global sessionKey
     
     logDir = os.path.join(os.environ["LOCALAPPDATA"], "Roblox", "Logs")
     logFiles = []
@@ -155,7 +157,7 @@ def getJobId():
     playingGame.set(f"Playing {ResponseData["data"][0]["name"]} by {ResponseData["data"][0]["builder"]}")
     userName = UserInfoData["name"]
 
-    requests.post(messageFunctionURL, json={"job_id": jobId, "username": "System", "message": f"{userName} has joined"})
+    requests.post(messageFunctionURL, json={"job_id": jobId, "sessionKey": sessionKey, "message": f"{userName} has joined"})
     newMessage("[Server]: Welcome to RBLXChat! Please keep things respectful.", False)
     newMessage("[Server]: Harrassment, homophobia, racism etc is not allowed.", False)
     isAttached = True
@@ -324,14 +326,29 @@ def onSignInClicked():
         return
     
     response = requests.post("https://highspeedtrain.net/api/auth/authorise", headers={"Content-Type": "application/json"}, json={"Action": "Login", "Username": usernameInput.get(), "Password": passwordInput.get()})
+    data = response.json()
 
     if response.status_code == 200:
-        sessionKey = response.json()["data"]["sessionKey"]
+        sessionKey = data["data"]["sessionKey"]
         needsToLogin = False
-        messagebox.showinfo("Signed In", f"Signed in as {response.json()["data"]["username"]}")
+        messagebox.showinfo("Signed In", f"Signed in as {data["data"]["username"]}")
+        with open(os.path.join(appdata, "info.txt"), "w") as file:
+            file.write(f"username:{usernameInput.get()}\n")
+            file.write(f"password:{passwordInput.get()}")
         return
     
-    needsToLogin = False
+    if response.status_code == 400:
+        messagebox.showerror("Login Error", "Username and password are required")
+    elif data["message"] == "Invalid username":
+        messagebox.showerror("Login Error", "Invalid username")
+    elif data["message"] == "Invalid password":
+        messagebox.showerror("Login Error", "Invalid password")
+    elif response.status_code == 500:
+        messagebox.showerror("Login Error", "An internal server error occured. Please try again.")
+    elif response.status_code == 429:
+        messagebox.showerror("Login Error", "You have attempted to login too many times. Please wait a minute before retrying.")
+    else:
+        messagebox.showerror("Login Error", f"an unknown error happened while logging in. please create an issue with this message: LogInHttpError-{response.status_code}-{data["message"]}")
     
 def initUi(loop):
     global playingGame
@@ -348,6 +365,22 @@ def initUi(loop):
     global mainContainer
     global usernameInput
     global passwordInput
+    global appdata
+    
+    os.makedirs(appdata, exist_ok=True)
+    
+    exsistingUsername = None
+    existingPassword = None
+    
+    if os.path.exists(os.path.join(appdata, "info.txt")):
+        with open(os.path.join(appdata, "info.txt"), "r") as file:
+            for line in file:
+                line = line.strip()
+                lineSplitted = line.split(":", 1)
+                if lineSplitted[0] == "username":
+                    exsistingUsername = lineSplitted[1]
+                elif lineSplitted[0] == "password":
+                    existingPassword = lineSplitted[1]
     
     root = ui.Tk()
     root.title("RBLXChatApp")
@@ -415,7 +448,7 @@ def initUi(loop):
         mainContainer.place(width=root.winfo_width(), height=root.winfo_height())
         attachButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne", width=55)
         unattachButton.place(x=mainContainer.winfo_width()-10, y=40, anchor="ne", width=55)
-        darkModeButton.place(x=mainContainer.winfo_width()-10, y=65, anchor="ne")
+        darkModeButton.place(x=mainContainer.winfo_width()-10, y=70, anchor="ne", width=55)
         chatInput.place(relx=0.5, y=mainContainer.winfo_height()-10, anchor="s", width=mainContainer.winfo_width()-20)
         messageScrollContainer.place(x=10, y=35, width=mainContainer.winfo_width()-80, height=mainContainer.winfo_height()-70)
         messageCanvas.config(scrollregion=messageCanvas.bbox("all"))
@@ -424,6 +457,11 @@ def initUi(loop):
         loop.call_soon(loop.stop)
         loop.run_forever()
         root.after(100, updatePosition)
+        
+    if exsistingUsername != None and existingPassword != None:
+        usernameInput.insert(0, exsistingUsername)
+        passwordInput.insert(0, existingPassword)
+        onSignInClicked()
     
     root.after(100, updatePosition)
     root.mainloop()
