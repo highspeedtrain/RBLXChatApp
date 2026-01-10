@@ -5,7 +5,7 @@ use this chat app
 Chat will automatically find the server id, game and account that you're playing and connect you to any other players in the same server.
 
 # How to Use
-You will need a (highspeedtrain.net)[https://highspeedtrain.net/account/create] account to use this.
+You will need a [highspeedtrain.net](https://highspeedtrain.net/account/create) account to use this.
 Install (see below)
 Open the .exe and sign in using your highspeedtrain.net account information
 Join a Roblox game
@@ -31,6 +31,18 @@ then, run
 ```
 pyinstaller --onefile --noconsole  main.py
 ```
+
+# FAQ
+Q: Does this violate Roblox ToS?<br>
+A: No<br>
+Q: Does Roblox view this as an exploit?<br>
+A: No, all it does is read the logs (which are in %LOCALAPPDATA%\Roblox\logs\)<br>
+Q: UI is terrible im deleting this app<br>
+A: yes i know<br>
+Q: ew so slow python terrible rewrite in java/c++/assembly/machine code/transistors<br>
+A: shut up<br>
+Q: can i be mod/admin<br>
+A: no<br>
 
 # Contributing
 This code is godawful since i was in a rush to make it, please do make PRs improving it.
