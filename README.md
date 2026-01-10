@@ -33,16 +33,16 @@ pyinstaller --onefile --noconsole  main.py
 ```
 
 # FAQ
-Q: Does this violate Roblox ToS?
-A: No
-Q: Does Roblox view this as an exploit?
-A: No, all it does is read the logs (which are in %LOCALAPPDATA%\Roblox\logs\)
-Q: UI is terrible im deleting this app
-A: yes i know
-Q: ew so slow python terrible rewrite in java/c++/assembly/machine code/transistors
-A: shut up
-Q: can i be mod/admin
-A: no
+Q: Does this violate Roblox ToS?\n
+A: No\n
+Q: Does Roblox view this as an exploit?\n
+A: No, all it does is read the logs (which are in %LOCALAPPDATA%\Roblox\logs\)\n
+Q: UI is terrible im deleting this app\n
+A: yes i know\n
+Q: ew so slow python terrible rewrite in java/c++/assembly/machine code/transistors\n
+A: shut up\n
+Q: can i be mod/admin\n
+A: no\n
 
 # Contributing
 This code is godawful since i was in a rush to make it, please do make PRs improving it.
