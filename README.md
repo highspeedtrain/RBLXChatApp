@@ -1,4 +1,4 @@
-# RBLXChatApp
+<img width="564" height="42" alt="image" src="https://github.com/user-attachments/assets/e733beea-f60d-49a9-9004-293f9130583a" /># RBLXChatApp
 Don't want to give your face to a billion dollar corporation being sued for using your data to train AI?
 use this chat app
 
@@ -33,16 +33,16 @@ pyinstaller --onefile --noconsole  main.py
 ```
 
 # FAQ
-Q: Does this violate Roblox ToS?\n
-A: No\n
-Q: Does Roblox view this as an exploit?\n
-A: No, all it does is read the logs (which are in %LOCALAPPDATA%\Roblox\logs\)\n
-Q: UI is terrible im deleting this app\n
-A: yes i know\n
-Q: ew so slow python terrible rewrite in java/c++/assembly/machine code/transistors\n
-A: shut up\n
-Q: can i be mod/admin\n
-A: no\n
+Q: Does this violate Roblox ToS?<br>
+A: No<br>
+Q: Does Roblox view this as an exploit?<br>
+A: No, all it does is read the logs (which are in %LOCALAPPDATA%\Roblox\logs\)<br>
+Q: UI is terrible im deleting this app<br>
+A: yes i know<br>
+Q: ew so slow python terrible rewrite in java/c++/assembly/machine code/transistors<br>
+A: shut up<br>
+Q: can i be mod/admin<br>
+A: no<br>
 
 # Contributing
 This code is godawful since i was in a rush to make it, please do make PRs improving it.
