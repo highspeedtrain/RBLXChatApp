@@ -5,7 +5,7 @@ use this chat app
 Chat will automatically find the server id, game and account that you're playing and connect you to any other players in the same server.
 
 # How to Use
-You will need a (highspeedtrain.net)[https://highspeedtrain.net/account/create] account to use this.
+You will need a [highspeedtrain.net](https://highspeedtrain.net/account/create) account to use this.
 Install (see below)
 Open the .exe and sign in using your highspeedtrain.net account information
 Join a Roblox game
