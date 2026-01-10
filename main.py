@@ -359,6 +359,7 @@ def onSignInClicked():
     else:
         messagebox.showerror("Login Error", f"an unknown error happened while logging in. please create an issue with this message: LogInHttpError-{response.status_code}-{data["message"]}")
         
+        
 def onSignOutClicked():
     global needsToLogin
     global appdata
