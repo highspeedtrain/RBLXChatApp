@@ -28,6 +28,7 @@ transport = WebsocketsTransport(url="wss://fxdbjbvpegpmnrlqmvwc.hasura.eu-west-2
 attachButton : Optional[ui.Button] = None
 unattachButton : Optional[ui.Button] = None
 darkModeButton : Optional[ui.Button] = None
+logoutButton : Optional[ui.Button] = None
 playingGameLabel : Optional[ui.Label] = None
 messageScrollContainer : Optional[ui.Frame] = None
 mainContainer : Optional[ui.Frame] = None
@@ -54,20 +55,25 @@ messageFunctionURL = "https://fxdbjbvpegpmnrlqmvwc.functions.eu-west-2.nhost.run
 async def initRealtime():
     subscriptionQuery = gql("""
     subscription {
-        messages {
+        messages(order_by: [{ created_at: desc }] limit: 1) {
             message_id
             job_id
             username
             message
+            created_at
         }
     }
     """)
     
     async with Client(transport=transport, fetch_schema_from_transport=False) as session:
         async for result in session.subscribe(subscriptionQuery):
-            if isAttached == False or result["messages"][-1]["job_id"] != jobId:
+            if len(result["messages"]) == 0:
                 continue
-            newMessage(f"[{result["messages"][-1]["username"]}]: {result["messages"][-1]["message"]}", True)
+            
+            if isAttached == False or result["messages"][0]["job_id"] != jobId:
+                continue
+            
+            newMessage(f"[{result["messages"][0]["username"]}]: {result["messages"][0]["message"]}", True)
     
 def getJobId():
     global placeId
@@ -282,7 +288,7 @@ def newMessage(message, wasChat):
     messageCanvas.update_idletasks()
     
 def toggleUiMode():
-    if mainContainer is None or messageContainer is None or attachButton is None or unattachButton is None or darkModeButton is None or playingGameLabel is None or chatInput is None or messageCanvas is None or messageScrollContainer is None or scrollbar is None:
+    if mainContainer is None or logoutButton is None or messageContainer is None or attachButton is None or unattachButton is None or darkModeButton is None or playingGameLabel is None or chatInput is None or messageCanvas is None or messageScrollContainer is None or scrollbar is None:
         return
     
     global isDarkMode
@@ -294,11 +300,12 @@ def toggleUiMode():
         attachButton.config(bg="#111111", fg="white")
         unattachButton.config(bg="#111111", fg="white")
         darkModeButton.config(bg="#111111", fg="white", text="Light")
+        logoutButton.config(bg="#111111", fg="white")
         playingGameLabel.config(bg="#323232", fg="white")
         chatInput.config(bg="#111111", fg="white")
         messageCanvas.config(bg="#323232")
         messageScrollContainer.config(bg="#323232")
-        scrollbar.config(bg="#323232")
+        scrollbar.config(troughcolor="#323232")
         
         for child in messageContainer.winfo_children():
             child.configure(bg="#323232", fg="white") # type: ignore
@@ -307,6 +314,7 @@ def toggleUiMode():
         messageContainer.config(bg="white")
         attachButton.config(bg="white", fg="black")
         unattachButton.config(bg="white", fg="black")
+        logoutButton.config(bg="white", fg="black")
         darkModeButton.config(bg="white", fg="black", text="Dark")
         playingGameLabel.config(bg="#f0f0f0", fg="black")
         chatInput.config(bg="white", fg="black")
@@ -333,6 +341,7 @@ def onSignInClicked():
         needsToLogin = False
         messagebox.showinfo("Signed In", f"Signed in as {data["data"]["username"]}")
         with open(os.path.join(appdata, "info.txt"), "w") as file:
+            file.write(f"sessionkey:{sessionKey}\n")
             file.write(f"username:{usernameInput.get()}\n")
             file.write(f"password:{passwordInput.get()}")
         return
@@ -349,7 +358,20 @@ def onSignInClicked():
         messagebox.showerror("Login Error", "You have attempted to login too many times. Please wait a minute before retrying.")
     else:
         messagebox.showerror("Login Error", f"an unknown error happened while logging in. please create an issue with this message: LogInHttpError-{response.status_code}-{data["message"]}")
+        
+def onSignOutClicked():
+    global needsToLogin
+    global appdata
+    global sessionKey
     
+    needsToLogin = True
+    
+    requests.post("https://highspeedtrain.net/api/auth/authorise", headers={"Content-Type": "application/json"}, json={"Action": "Logout", "SessionKey": sessionKey})
+    sessionKey = None
+    
+    os.remove(os.path.join(appdata, "info.txt"))
+    onUnattachClicked()
+
 def initUi(loop):
     global playingGame
     global chatInput
@@ -366,11 +388,15 @@ def initUi(loop):
     global usernameInput
     global passwordInput
     global appdata
+    global sessionKey
+    global needsToLogin
+    global logoutButton
     
     os.makedirs(appdata, exist_ok=True)
     
     exsistingUsername = None
     existingPassword = None
+    existingSessionKey = None
     
     if os.path.exists(os.path.join(appdata, "info.txt")):
         with open(os.path.join(appdata, "info.txt"), "r") as file:
@@ -381,6 +407,8 @@ def initUi(loop):
                     exsistingUsername = lineSplitted[1]
                 elif lineSplitted[0] == "password":
                     existingPassword = lineSplitted[1]
+                elif lineSplitted[0] == "sessionkey":
+                    existingSessionKey = lineSplitted[1]
     
     root = ui.Tk()
     root.title("RBLXChatApp")
@@ -408,6 +436,8 @@ def initUi(loop):
     darkModeButton = ui.Button(mainContainer, text="Dark", command=toggleUiMode)
     darkModeButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne")
     
+    logoutButton = ui.Button(mainContainer, text="Logout", command=onSignOutClicked)
+    
     playingGameLabel = ui.Label(mainContainer, textvariable=playingGame)
     playingGameLabel.place(x=10, y = 10, anchor = "nw")
     
@@ -431,7 +461,7 @@ def initUi(loop):
     window = messageCanvas.create_window((0, 0), window=messageContainer, anchor="nw")
     
     def updatePosition():
-        if root is None or usernameInput is None or passwordInput is None or mainContainer is None or chatInput is None or messageCanvas is None or attachButton is None or unattachButton is None or darkModeButton is None or messageScrollContainer is None:
+        if root is None or usernameInput is None or passwordInput is None or mainContainer is None or chatInput is None or messageCanvas is None or attachButton is None or unattachButton is None or darkModeButton is None or messageScrollContainer is None or logoutButton is None:
             return
         
         if needsToLogin:
@@ -449,6 +479,7 @@ def initUi(loop):
         attachButton.place(x=mainContainer.winfo_width()-10, y=10, anchor="ne", width=55)
         unattachButton.place(x=mainContainer.winfo_width()-10, y=40, anchor="ne", width=55)
         darkModeButton.place(x=mainContainer.winfo_width()-10, y=70, anchor="ne", width=55)
+        logoutButton.place(x=mainContainer.winfo_width()-10, y=100, anchor="ne", width=55)
         chatInput.place(relx=0.5, y=mainContainer.winfo_height()-10, anchor="s", width=mainContainer.winfo_width()-20)
         messageScrollContainer.place(x=10, y=35, width=mainContainer.winfo_width()-80, height=mainContainer.winfo_height()-70)
         messageCanvas.config(scrollregion=messageCanvas.bbox("all"))
@@ -458,10 +489,9 @@ def initUi(loop):
         loop.run_forever()
         root.after(100, updatePosition)
         
-    if exsistingUsername != None and existingPassword != None:
-        usernameInput.insert(0, exsistingUsername)
-        passwordInput.insert(0, existingPassword)
-        onSignInClicked()
+    if existingSessionKey is not None and exsistingUsername is not None and existingPassword is not None:
+        sessionKey = existingSessionKey
+        needsToLogin = False
     
     root.after(100, updatePosition)
     root.mainloop()
