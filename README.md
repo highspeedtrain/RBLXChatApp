@@ -6,19 +6,19 @@ Chat will automatically find the server id, game and account that you're playing
 
 # How to Use
 You will need a [highspeedtrain.net](https://highspeedtrain.net/account/create) account to use this.
-By using the services, you agree to the [highspeedtrain.net Terms of Use](https://highspeedtrain.net/about)
-Install (see below)
-Open the .exe and sign in using your highspeedtrain.net account information
-Join a Roblox game
-Click "Attach"
-Wait until the chat says "[Server]: Connected to WS"
-You can then use chat as normal, type in the box, press enter to send message.
-After leaving, press Unattach.
+By using the services, you agree to the [highspeedtrain.net Terms of Use](https://highspeedtrain.net/about)<br>
+Install (see below)<br>
+Open the .exe and sign in using your highspeedtrain.net account information<br>
+Join a Roblox game<br>
+Click "Attach"<br>
+Wait until the chat says "[Server]: Connected to WS"<br>
+You can then use chat as normal, type in the box, press enter to send message.<br>
+After leaving, press Unattach.<br>
 
 # Moderation
-Currently, there is no chat filter.
-However, slurs, hate speech, harrasment, homophobia, racism will not be tolerated.
-Moderators will issue IP bans for those who partake in this behaviour.
+Currently, there is no chat filter.<br>
+However, slurs, hate speech, harrasment, homophobia, racism will not be tolerated.<br>
+Moderators will issue IP bans for those who partake in this behaviour.<br>
 
 # Installation
 ## Release
