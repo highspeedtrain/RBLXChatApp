@@ -6,6 +6,7 @@ Chat will automatically find the server id, game and account that you're playing
 
 # How to Use
 You will need a [highspeedtrain.net](https://highspeedtrain.net/account/create) account to use this.
+By using the services, you agree to the [highspeedtrain.net Terms of Use](https://highspeedtrain.net/about)
 Install (see below)
 Open the .exe and sign in using your highspeedtrain.net account information
 Join a Roblox game
