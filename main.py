@@ -380,6 +380,8 @@ def initUi(loop):
                     existingSessionKey = lineSplitted[1]
     
     root = ui.CTk()
+    ui.set_widget_scaling(1.0)
+    ui.set_window_scaling(1.0)
     root.title("RBLXChatApp")
     root.geometry(f"{500}x{300}")
     root.resizable(True, True)
@@ -451,6 +453,7 @@ def initUi(loop):
         chatInput.configure(width=mainContainer.winfo_width()-20)
         messageScrollContainer.place(x=10, y=35)
         messageScrollContainer.configure(width=mainContainer.winfo_width()-115, height=mainContainer.winfo_height()-90)
+        messageScrollContainer._scrollbar.configure(height=0)
         loop.call_soon(loop.stop)
         loop.run_forever()
         root.after(100, updatePosition)
