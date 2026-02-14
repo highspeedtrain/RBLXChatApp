@@ -11,13 +11,13 @@ Install (see below)<br>
 Open the .exe and sign in using your highspeedtrain.net account information<br>
 Join a Roblox game<br>
 Click "Attach"<br>
-Wait until the chat says "[Server]: Connected to WS"<br>
+Wait until the chat says "[yourname]: yourname has joined!"<br>
 You can then use chat as normal, type in the box, press enter to send message.<br>
 After leaving, press Unattach.<br>
 
 # Moderation
-Currently, there is no chat filter.<br>
-However, slurs, hate speech, harrasment, homophobia, racism will not be tolerated.<br>
+A chat filter is present that will filter slurs<br>
+Hate speech, harrasment, homophobia, racism will not be tolerated.<br>
 Moderators will issue IP bans for those who partake in this behaviour.<br>
 
 # Installation

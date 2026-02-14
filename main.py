@@ -1,3 +1,4 @@
+# todo: rewrite in anything but python
 import tkinter as ui
 from tkinter import messagebox, font
 from typing import Optional
@@ -6,11 +7,12 @@ import platform
 import psutil
 import os
 import re
+import threading
 import requests
 import asyncio
-from gql import gql, Client
-from gql.transport.websockets import WebsocketsTransport
-
+import websocket
+import json
+import time
 
 jobId = None
 placeId = None
@@ -24,7 +26,6 @@ messageCanvas: Optional[ui.Canvas] = None
 messageContainer: Optional[ui.Frame] = None
 isAttached = False
 isDarkMode = False
-transport = WebsocketsTransport(url="wss://fxdbjbvpegpmnrlqmvwc.hasura.eu-west-2.nhost.run/v1/graphql")
 attachButton : Optional[ui.Button] = None
 unattachButton : Optional[ui.Button] = None
 darkModeButton : Optional[ui.Button] = None
@@ -34,10 +35,13 @@ messageScrollContainer : Optional[ui.Frame] = None
 mainContainer : Optional[ui.Frame] = None
 scrollbar : Optional[ui.Scrollbar] = None
 needsToLogin = True
+debug = False
 sessionKey : Optional[str] = None
 usernameInput : Optional[ui.Entry] = None
 passwordInput : Optional[ui.Entry] = None
 appdata = os.path.join(os.environ.get("LOCALAPPDATA"), "RBLXChatApp") #type:ignore
+sessionKeyDoneEvent = asyncio.Event()
+socket : Optional[websocket.WebSocketApp] = None
 
 NAME_COLOURS = [
 "#FD2943",
@@ -52,28 +56,62 @@ NAME_COLOURS = [
 
 messageFunctionURL = "https://fxdbjbvpegpmnrlqmvwc.functions.eu-west-2.nhost.run/v1/message"
 
-async def initRealtime():
-    subscriptionQuery = gql("""
-    subscription {
-        messages(order_by: [{ created_at: desc }] limit: 1) {
-            message_id
-            job_id
-            username
-            message
-            created_at
-        }
-    }
-    """)
+def socketOpened(socket: websocket.WebSocketApp):
+    newMessage("connected to gateway wss://apis.highspeedtrain.net", False)
+    socket.send(json.dumps({ "action": "authenticate", "sessionKey": sessionKey }))
+
+def onMessage(socket: websocket.WebSocketApp, rawmessage):
+    global debug
     
-    async with Client(transport=transport, fetch_schema_from_transport=False) as session:
-        async for result in session.subscribe(subscriptionQuery):
-            if len(result["messages"]) == 0:
-                continue
-            
-            if isAttached == False or result["messages"][0]["job_id"] != jobId:
-                continue
-            
-            newMessage(f"[{result["messages"][0]["username"]}]: {result["messages"][0]["message"]}", True)
+    message = json.loads(rawmessage)
+    
+    Action = message.get("action")
+    Message = message.get("message")
+    Error = message.get("error")
+    
+    if Message == "heartbeat":
+        socket.send(json.dumps({ "message": "heartbeatResponse" }))
+        return
+    
+    if Message == "authed!":
+        newMessage("authenticated successfully", False)
+        
+    
+    if Action == "newmessage":
+        newMessage(message["recievedmessage"], True)
+        
+    if Message == "you are already in a server!":
+        messagebox.showerror("Failed to Join Server", "You are already in a server. Try unattaching.")
+    
+    if Message == "the server you are in does not exist!":
+        messagebox.showerror("Failed Action", "The server you are in does not exsist. Try unattaching and reattaching.")
+    if str.find(Message or "", "left") != -1 and debug:
+        newMessage("ws acked leave", False)
+    
+    if str.find(Message or "", "joined") != -1 and debug:
+        newMessage("ws acked joined", False)
+        
+    if Error == 400 and str.find(Message or "", "messageerror"):
+        messagebox.showerror(f"Message Error", "Sending a message failed: {Message}")
+    
+    if Error == 401 or Error == 403:
+        messagebox.showerror("Authentication Error", "An error was encountered during authentication. Please log out and restart your client.")
+    
+def startWS():
+    global socket
+    
+    socket = websocket.WebSocketApp(
+        "wss://apis.highspeedtrain.net",
+        on_open=socketOpened,
+        on_message=onMessage
+    )
+    socket.run_forever()
+
+async def initRealtime():
+    await sessionKeyDoneEvent.wait()
+    
+    # this is so stupid
+    threading.Thread(target=startWS, daemon=True).start()
     
 def getJobId():
     global placeId
@@ -84,6 +122,11 @@ def getJobId():
     global isAttached
     global userName
     global sessionKey
+    global socket
+    
+    if socket == None:
+        messagebox.showerror("Failed to Attach", "Please wait until the websocket is initialised.")
+        return
     
     logDir = os.path.join(os.environ["LOCALAPPDATA"], "Roblox", "Logs")
     logFiles = []
@@ -113,7 +156,7 @@ def getJobId():
     if len(placeIdMatches) == 0:
         messagebox.showinfo("Failed to Attach", "Couldn't find PlaceId in the log file. If Roblox has just started, please wait a moment before trying again.")
         return
-    
+        
     if len(universeIdMatches) == 0:
         messagebox.showinfo("Failed to Attach", "Couldn't find UniverseId in the log file. If Roblox has just started, please wait a moment before trying again.")
         return
@@ -162,8 +205,9 @@ def getJobId():
         return
     playingGame.set(f"Playing {ResponseData["data"][0]["name"]} by {ResponseData["data"][0]["builder"]}")
     userName = UserInfoData["name"]
-
-    requests.post(messageFunctionURL, json={"job_id": jobId, "sessionKey": sessionKey, "message": f"{userName} has joined"})
+    
+    socket.send(json.dumps({ "action": "joinJobId", "jobid": jobId}))
+    socket.send(json.dumps({ "action": "sendMessage", "message": f"{userName} has joined"}))
     newMessage("[Server]: Welcome to RBLXChat! Please keep things respectful.", False)
     newMessage("[Server]: Harrassment, homophobia, racism etc is not allowed.", False)
     isAttached = True
@@ -175,7 +219,7 @@ def onUnattachClicked():
     global userName
     global isAttached
     
-    if isAttached == False:
+    if isAttached == False or socket is None:
         messagebox.showinfo("Failed to Unattach", "Not attached")
         return
     
@@ -185,6 +229,7 @@ def onUnattachClicked():
         return
     
     playingGame.set("Not playing anything")
+    socket.send(json.dumps({ "action": "leaveJobId", "jobid": jobId }))
     jobId = None
     placeId = None
     universeId = None
@@ -223,7 +268,7 @@ def onMessageLeft(*args):
 def onReturn(*args):
     global userName
     
-    if root is None or chatInput is None:
+    if root is None or chatInput is None or socket is None:
         return
     root.focus()
     
@@ -231,23 +276,7 @@ def onReturn(*args):
         messagebox.showinfo("Failed to Send Message", f"You are not playing anything")
         return
     
-    Result = requests.post(messageFunctionURL, json={"job_id": jobId, "sessionKey": sessionKey, "message": chatInput.get()})
-    if Result.status_code == 200:
-        return
-    
-    if Result.status_code == 429:
-        messagebox.showinfo("Failed to Send Message", f"why are you sending so many messages")
-        return
-    elif Result.status_code == 500:
-        messagebox.showinfo("Failed to Send Message", f"internal server error, please dm highspeedtrain with info")
-        return
-    elif Result.status_code == 400:
-        messagebox.showinfo("Failed to Send Message", f"message was more than 300 characters, please split up message")
-        return
-    elif Result.status_code == 401:
-        messagebox.showinfo("Failed to Send Message", f"authentication failed, please restart the client")
-    else:
-        messagebox.showinfo("wtf", f"unknown error {Result.status_code}")
+    socket.send(json.dumps({ "action": "sendMessage", "message": chatInput.get() }))
         
 def getNameColour(name):
     value = 0
@@ -286,6 +315,8 @@ def newMessage(message, wasChat):
         text.tag_config("highlight", foreground=computeNameColour(re.search(r"\[(.*?)\]:", message).group(1))) # type: ignore
     
     messageCanvas.update_idletasks()
+    time.sleep(0.1)
+    messageCanvas.yview_moveto(1)
     
 def toggleUiMode():
     if mainContainer is None or logoutButton is None or messageContainer is None or attachButton is None or unattachButton is None or darkModeButton is None or playingGameLabel is None or chatInput is None or messageCanvas is None or messageScrollContainer is None or scrollbar is None:
@@ -311,7 +342,7 @@ def toggleUiMode():
             child.configure(bg="#323232", fg="white") # type: ignore
     else:
         mainContainer.config(bg="#f0f0f0")
-        messageContainer.config(bg="white")
+        messageContainer.config(bg="#f0f0f0")
         attachButton.config(bg="white", fg="black")
         unattachButton.config(bg="white", fg="black")
         logoutButton.config(bg="white", fg="black")
@@ -338,6 +369,7 @@ def onSignInClicked():
 
     if response.status_code == 200:
         sessionKey = data["data"]["sessionKey"]
+        loop.call_soon_threadsafe(sessionKeyDoneEvent.set)
         needsToLogin = False
         messagebox.showinfo("Signed In", f"Signed in as {data["data"]["username"]}")
         with open(os.path.join(appdata, "info.txt"), "w") as file:
@@ -364,16 +396,23 @@ def onSignOutClicked():
     global needsToLogin
     global appdata
     global sessionKey
+    global isAttached
     
     needsToLogin = True
     
     requests.post("https://highspeedtrain.net/api/auth/authorise", headers={"Content-Type": "application/json"}, json={"Action": "Logout", "SessionKey": sessionKey})
     sessionKey = None
     
-    os.remove(os.path.join(appdata, "info.txt"))
-    onUnattachClicked()
+    try:
+        os.remove(os.path.join(appdata, "info.txt"))
+    except:
+        print("no info")
+    
+    if isAttached:
+        onUnattachClicked()
+    sys.exit(1)
 
-def initUi(loop):
+def initUi():
     global playingGame
     global chatInput
     global root
@@ -420,7 +459,9 @@ def initUi(loop):
     loginContainer = ui.Frame(root, height=root.winfo_height(), width=root.winfo_width())
     
     signInLabel = ui.Label(loginContainer, text="Sign In With Your highspeedtrain.net Account")
+    usernameLabel = ui.Label(loginContainer, text="Username")
     usernameInput = ui.Entry(loginContainer, bg="white")
+    passwordLabel = ui.Label(loginContainer, text="Password")
     passwordInput = ui.Entry(loginContainer, bg="white")
     signInButton = ui.Button(loginContainer, text="Sign In", command=onSignInClicked)
     
@@ -468,11 +509,11 @@ def initUi(loop):
         if needsToLogin:
             loginContainer.place(height=root.winfo_height(), width=root.winfo_width())
             signInLabel.place(x=10, y=10)
-            usernameInput.place(x=10, y=40, width=200, height=25)
-            passwordInput.place(x=10, y=75, width=200, height=25)
+            usernameLabel.place(x=10, y=40, width=60, height=25)
+            usernameInput.place(x=100, y=40, width=200, height=25)
+            passwordLabel.place(x=10, y=75, width=60, height=25)
+            passwordInput.place(x=100, y=75, width=200, height=25)
             signInButton.place(x=10, y=105)
-            loop.call_soon(loop.stop)
-            loop.run_forever()
             root.after(100, updatePosition)
             return
         
@@ -485,16 +526,24 @@ def initUi(loop):
         messageScrollContainer.place(x=10, y=35, width=mainContainer.winfo_width()-80, height=mainContainer.winfo_height()-70)
         messageCanvas.config(scrollregion=messageCanvas.bbox("all"))
         messageCanvas.itemconfig(window, width=messageCanvas.winfo_width())
-        messageCanvas.yview_moveto(1)
-        loop.call_soon(loop.stop)
-        loop.run_forever()
+        # messageCanvas.yview_moveto(1)
         root.after(100, updatePosition)
         
     if existingSessionKey is not None and exsistingUsername is not None and existingPassword is not None:
         sessionKey = existingSessionKey
+        loop.call_soon_threadsafe(sessionKeyDoneEvent.set)
         needsToLogin = False
+        
+    def stupid():
+        if root is None:
+            return
+        
+        loop.call_soon(loop.stop)
+        loop.run_forever()
+        root.after(50, stupid)
     
     root.after(100, updatePosition)
+    root.after(50, stupid)
     root.mainloop()
 
 if __name__ != "__main__":
@@ -508,4 +557,4 @@ if platform.system() != "Windows":
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 loop.create_task(initRealtime())
-initUi(loop)
+initUi()
