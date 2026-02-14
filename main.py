@@ -54,8 +54,6 @@ NAME_COLOURS = [
 "#D7C59A"
 ]
 
-messageFunctionURL = "https://fxdbjbvpegpmnrlqmvwc.functions.eu-west-2.nhost.run/v1/message"
-
 def socketOpened(socket: websocket.WebSocketApp):
     newMessage("connected to gateway wss://apis.highspeedtrain.net", False)
     socket.send(json.dumps({ "action": "authenticate", "sessionKey": sessionKey }))
